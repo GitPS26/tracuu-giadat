@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tra cứu Bảng giá đất Sơn La 2026</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        
+        /* Tùy chỉnh thanh cuộn */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .loader {
+            border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #2563eb;
+            width: 20px; height: 20px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Cố định Header bảng */
+        .table-container { max-height: 70vh; overflow-y: auto; }
+        thead th { position: sticky; top: 0; z-index: 10; background-color: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        
+        /* Mobile Tab scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-blue-900 text-white shadow-md z-20 flex-none">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white text-blue-900 rounded-lg flex items-center justify-center font-bold text-xl shadow">SL</div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-none uppercase tracking-wide">Giá Đất Sơn La</h1>
+                        <p class="text-xs text-blue-200 mt-1">Nghị quyết 152/2025/NQ-HĐND</p>
+                    </div>
+                </div>
+                <button class="text-sm bg-blue-800 hover:bg-blue-700 px-3 py-1.5 rounded text-blue-100 transition">
+                    <i class="fa-solid fa-circle-info mr-1"></i> 2026
+                </button>
+            </div>
+
+            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                <button onclick="app.switchTab('dat_o')" class="tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition bg-white text-blue-900 shadow" data-tab="dat_o">🏡 Đất Ở</button>
+                <button onclick="app.switchTab('dat_tmdv')" class="tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition text-blue-100 hover:bg-blue-800" data-tab="dat_tmdv">🏢 TM-DV</button>
+                <button onclick="app.switchTab('dat_sxkd')" class="tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition text-blue-100 hover:bg-blue-800" data-tab="dat_sxkd">🏭 SXKD</button>
+                <button onclick="app.switchTab('dat_nn')" class="tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition text-blue-100 hover:bg-blue-800" data-tab="dat_nn">🌾 Nông Nghiệp</button>
+                <button onclick="app.switchTab('dat_kcn')" class="tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition text-blue-100 hover:bg-blue-800" data-tab="dat_kcn">🏗️ KCN</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="bg-white border-b border-slate-200 p-4 z-10 shadow-sm flex-none">
+        <div class="container mx-auto flex flex-col md:flex-row gap-3">
+            <div class="relative flex-grow">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
+                <input type="text" id="searchInput" placeholder="Nhập tên xã, tên đường..." 
+                    class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+                <button id="clearSearch" class="hidden absolute right-3 top-3 text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="w-full md:w-72">
+                <div class="relative">
+                    <i class="fa-solid fa-location-dot absolute left-3 top-3 text-slate-400"></i>
+                    <select id="areaSelect" class="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none cursor-pointer">
+                        <option value="">-- Tất cả Xã/Phường --</option>
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-3 top-3.5 text-xs text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+        </div>
+        <div class="container mx-auto mt-2 flex justify-between items-center text-xs text-slate-500">
+            <span id="loadingIcon" class="hidden flex items-center gap-2"><div class="loader"></div> Đang tải dữ liệu...</span>
+            <span id="recordCount" class="ml-auto">0 kết quả</span>
+        </div>
+    </section>
+
+    <main class="flex-grow container mx-auto px-0 md:px-4 py-2 overflow-hidden flex flex-col">
+        <div class="bg-white md:rounded-lg shadow border border-slate-200 flex-grow table-container relative">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-bold" id="tableHead">
+                    </thead>
+                <tbody class="text-sm divide-y divide-slate-100" id="tableBody">
+                    </tbody>
+            </table>
+            
+            <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-white z-0">
+                <div class="bg-slate-100 p-4 rounded-full mb-3">
+                    <i class="fa-solid fa-file-circle-xmark text-3xl text-slate-400"></i>
+                </div>
+                <p class="text-slate-500 font-medium">Không tìm thấy dữ liệu phù hợp</p>
+                <p class="text-xs text-slate-400 mt-1">Thử tìm bằng từ khóa khác hoặc chọn "Tất cả Xã/Phường"</p>
+            </div>
+        </div>
+    </main>
+
+    <div id="adPopup" class="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-xl shadow-2xl border border-slate-100 transform transition-all duration-500 translate-y-[150%] opacity-0">
+        <div class="relative">
+            <div class="bg-gradient-to-r from-yellow-400 to-orange-500 h-1.5 w-full rounded-t-xl"></div>
+            <button onclick="app.closeAd()" class="absolute top-3 right-3 text-slate-300 hover:text-slate-500 transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <div class="p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Quảng cáo</span>
+                    <span class="text-xs text-slate-400">Tài trợ</span>
+                </div>
+                <h4 class="font-bold text-slate-800 text-sm mb-1">Dịch vụ Đo đạc & Pháp lý Nhà đất</h4>
+                <p class="text-xs text-slate-600 mb-3 leading-relaxed">Hỗ trợ làm sổ đỏ, chuyển đổi mục đích sử dụng đất, tách thửa nhanh chóng tại Sơn La.</p>
+                <a href="#" class="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-2 rounded-lg text-xs font-bold transition shadow-sm hover:shadow">Liên hệ tư vấn ngay</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const app = {
+            // --- CẤU HÌNH LIÊN KẾT (Thay Link CSV của bạn vào đây) ---
+            sources: {
+                'dat_o': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQG4GE0-U9irRzG5TTM7a0gLEsHt4ZflFq5cybPtjW_TvQCKmcLsylPnn_ytWmUGHTtt6AOQct8HHIM/pub?gid=747438694&single=true&output=csv',
+                'dat_tmdv': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQG4GE0-U9irRzG5TTM7a0gLEsHt4ZflFq5cybPtjW_TvQCKmcLsylPnn_ytWmUGHTtt6AOQct8HHIM/pub?gid=1579441763&single=true&output=csv',
+                'dat_sxkd': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQG4GE0-U9irRzG5TTM7a0gLEsHt4ZflFq5cybPtjW_TvQCKmcLsylPnn_ytWmUGHTtt6AOQct8HHIM/pub?gid=1380150361&single=true&output=csv',
+                'dat_nn': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQG4GE0-U9irRzG5TTM7a0gLEsHt4ZflFq5cybPtjW_TvQCKmcLsylPnn_ytWmUGHTtt6AOQct8HHIM/pub?gid=824618310&single=true&output=csv',
+                'dat_kcn': 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQG4GE0-U9irRzG5TTM7a0gLEsHt4ZflFq5cybPtjW_TvQCKmcLsylPnn_ytWmUGHTtt6AOQct8HHIM/pub?gid=1164290113&single=true&output=csv'
+            },
+
+            // Từ điển hiển thị tên cột cho đẹp
+            colMap: {
+                'STT': 'STT',
+                'Xa_Phuong': 'Khu vực (Xã/Phường)',
+                'Ten_Tuyen_Duong': 'Tên Tuyến Đường / Vị trí',
+                // Cột giá 5 vị trí
+                'VT1': 'Vị trí 1', 'VT2': 'Vị trí 2', 'VT3': 'Vị trí 3', 'VT4': 'Vị trí 4', 'VT5': 'Vị trí 5',
+                // Cột Nông nghiệp
+                'Dat_Trong_Lua': 'Đất Trồng Lúa',
+                'Dat_Trong_Lua_1_Vu': 'Lúa 1 Vụ',
+                'Dat_Trong_Lua_Con_Lai': 'Lúa còn lại',
+                'Dat_Cay_Lau_Nam': 'Cây Lâu Năm',
+                'Dat_Cay_Hang_Nam': 'Cây Hàng Năm',
+                'Dat_Rung_SX': 'Rừng SX',
+                // Cột KCN
+                'Gia_Dat': 'Giá Đất (nghìn đ/m2)'
+            },
+            
+            data: [],
+            headers: [],
+            currentTab: 'dat_o',
+            debounceTimer: null,
+
+            init: function() {
+                this.switchTab('dat_o');
+                
+                // Event Listeners
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    document.getElementById('clearSearch').classList.toggle('hidden', !e.target.value);
+                    clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => this.filter(), 300);
+                });
+
+                document.getElementById('areaSelect').addEventListener('change', () => this.filter());
+                
+                document.getElementById('clearSearch').addEventListener('click', () => {
+                    document.getElementById('searchInput').value = '';
+                    document.getElementById('clearSearch').classList.add('hidden');
+                    this.filter();
+                });
+
+                // Quảng cáo
+                setTimeout(() => {
+                    document.getElementById('adPopup').classList.remove('translate-y-[150%]', 'opacity-0');
+                }, 4000);
+            },
+
+            closeAd: function() {
+                document.getElementById('adPopup').classList.add('translate-y-[150%]', 'opacity-0');
+            },
+
+            switchTab: function(tabKey) {
+                this.currentTab = tabKey;
+                
+                // Update Style Tab
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    if(btn.dataset.tab === tabKey) {
+                        btn.className = "tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition bg-blue-800 text-white shadow ring-2 ring-blue-300 ring-opacity-50";
+                    } else {
+                        btn.className = "tab-btn whitespace-nowrap px-4 py-2 text-sm font-medium rounded-lg transition text-blue-100 hover:bg-blue-800 hover:text-white";
+                    }
+                });
+
+                this.fetchData(tabKey);
+            },
+
+            fetchData: function(key) {
+                const url = this.sources[key];
+                const loader = document.getElementById('loadingIcon');
+                loader.classList.remove('hidden');
+
+                // DEMO MODE: Nếu chưa thay link, tạo dữ liệu mẫu
+                if(!url || url.includes('LINK_CSV')) {
+                    console.warn("Chưa có link CSV, đang chạy chế độ Demo");
+                    this.mockData(key);
+                    loader.classList.add('hidden');
+                    return;
+                }
+
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        this.data = results.data;
+                        // Lấy headers từ data thực tế để đảm bảo cột nào có thì hiện, không có thì ẩn
+                        this.headers = results.meta.fields || Object.keys(this.data[0]);
+                        
+                        this.populateAreas();
+                        this.filter();
+                        loader.classList.add('hidden');
+                    },
+                    error: (err) => {
+                        alert('Không tải được dữ liệu. Vui lòng kiểm tra Link Google Sheet.');
+                        loader.classList.add('hidden');
+                    }
+                });
+            },
+
+            populateAreas: function() {
+                const select = document.getElementById('areaSelect');
+                select.innerHTML = '<option value="">-- Tất cả Xã/Phường --</option>';
+                
+                // Lấy danh sách Xã duy nhất từ cột 'Xa_Phuong'
+                const areas = [...new Set(this.data.map(d => d.Xa_Phuong || '').filter(x => x))].sort();
+                
+                areas.forEach(area => {
+                    const opt = document.createElement('option');
+                    opt.value = area;
+                    opt.textContent = area;
+                    select.appendChild(opt);
+                });
+            },
+
+            filter: function() {
+                const term = this.removeAccents(document.getElementById('searchInput').value.toLowerCase());
+                const selectedArea = document.getElementById('areaSelect').value;
+                
+                const filtered = this.data.filter(row => {
+                    // 1. Tìm kiếm: Ưu tiên cột 'Dieu_Kien_Loc' nếu có (nhanh hơn), nếu không thì gộp các cột khác
+                    let searchSource = "";
+                    if (row.Dieu_Kien_Loc) {
+                        searchSource = row.Dieu_Kien_Loc;
+                    } else {
+                        // Fallback cho bảng KCN hoặc Nông nghiệp nếu không có Dieu_Kien_Loc
+                        searchSource = (row.Ten_Tuyen_Duong || '') + ' ' + (row.Xa_Phuong || '');
+                    }
+                    
+                    const matchSearch = this.removeAccents(searchSource.toLowerCase()).includes(term);
+
+                    // 2. Lọc Xã
+                    const matchArea = selectedArea === "" || row.Xa_Phuong === selectedArea;
+
+                    return matchSearch && matchArea;
+                });
+
+                this.render(filtered);
+            },
+
+            render: function(rows) {
+                const tbody = document.getElementById('tableBody');
+                const thead = document.getElementById('tableHead');
+                const empty = document.getElementById('emptyState');
+                
+                tbody.innerHTML = '';
+                document.getElementById('recordCount').textContent = `${rows.length} kết quả`;
+
+                if(rows.length === 0) {
+                    empty.classList.remove('hidden');
+                    thead.innerHTML = ''; // Ẩn header khi không có data cho đẹp
+                    return;
+                } else {
+                    empty.classList.add('hidden');
+                }
+
+                // 1. RENDER HEADER ĐỘNG
+                // Loại bỏ cột 'Dieu_Kien_Loc' và các cột rỗng không cần thiết
+                const ignoreCols = ['Dieu_Kien_Loc'];
+                let displayCols = this.headers.filter(h => !ignoreCols.includes(h));
+                
+                // Sắp xếp lại thứ tự cột nếu cần (đưa STT, Xã, Tên đường lên đầu)
+                // Logic: Filter giữ nguyên thứ tự trong CSV, thường là OK.
+                
+                let hHtml = '<tr>';
+                displayCols.forEach(h => {
+                    // Map tên cột sang tiếng Việt
+                    let displayName = this.colMap[h] || h.replace(/_/g, ' ');
+                    
+                    // Style riêng cho các cột giá
+                    let alignClass = (h.includes('VT') || h.includes('Gia') || h.includes('Dat_')) ? "text-right" : "text-left";
+                    
+                    hHtml += `<th class="px-4 py-3 border-b whitespace-nowrap bg-slate-50 text-slate-600 ${alignClass}">${displayName}</th>`;
+                });
+                hHtml += '</tr>';
+                thead.innerHTML = hHtml;
+
+                // 2. RENDER BODY (Tối đa 100 dòng)
+                const limit = rows.slice(0, 100);
+                
+                limit.forEach(row => {
+                    let tr = '<tr class="hover:bg-blue-50 transition border-b border-slate-100">';
+                    displayCols.forEach(col => {
+                        let val = row[col] || '-';
+                        
+                        // Style từng ô
+                        let classes = "px-4 py-3 text-slate-700 align-top";
+                        
+                        // Style đặc biệt
+                        if(col === 'Ten_Tuyen_Duong') classes += " font-medium text-slate-900 min-w-[250px]";
+                        if(col === 'Xa_Phuong') classes += " text-xs font-semibold text-slate-500 uppercase min-w-[120px]";
+                        if(col === 'STT') classes += " text-center text-slate-400 font-mono text-xs w-10";
+                        
+                        // Tô màu giá tiền
+                        if((col.includes('VT') || col.includes('Gia') || col.includes('Dat_')) && val !== '-') {
+                            classes += " text-right font-mono font-bold text-blue-700 whitespace-nowrap";
+                        } else if ((col.includes('VT') || col.includes('Gia')) && val === '-') {
+                             classes += " text-right text-slate-300"; // Giá rỗng thì làm mờ
+                        }
+
+                        tr += `<td class="${classes}">${val}</td>`;
+                    });
+                    tr += '</tr>';
+                    tbody.innerHTML += tr;
+                });
+            },
+
+            removeAccents: function(str) {
+                return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+            },
+
+            // Dữ liệu mẫu (chỉ hiện khi chưa có Link CSV thật)
+            mockData: function(key) {
+                let mocks = [];
+                if(key === 'dat_nn') {
+                     this.headers = ['STT', 'Xa_Phuong', 'Ten_Tuyen_Duong', 'Dat_Trong_Lua', 'Dat_Cay_Lau_Nam'];
+                     mocks = [{STT:'1', Xa_Phuong: 'Xã Demo', Ten_Tuyen_Duong: 'Toàn xã', Dat_Trong_Lua: '60', Dat_Cay_Lau_Nam: '40'}];
+                } else {
+                     this.headers = ['STT', 'Xa_Phuong', 'Ten_Tuyen_Duong', 'VT1', 'VT2', 'VT3', 'VT4', 'VT5'];
+                     mocks = [{STT:'1', Xa_Phuong: 'Xã Demo', Ten_Tuyen_Duong: 'Đường mẫu (chưa có link CSV)', VT1: '1000', VT2: '800', VT3:'-', VT4:'-', VT5:'-'}];
+                }
+                this.data = mocks;
+                this.populateAreas();
+                this.render(mocks);
+            }
+        };
+
+        // Khởi chạy
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
